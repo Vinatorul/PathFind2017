@@ -11,6 +11,7 @@ local modifiedMapPath = {}
 local botMaze = {}
 local possiblePositions = {}
 local visited = {}
+local start = false
 quadsize = 23;
 width = 20
 height = 15
@@ -70,7 +71,7 @@ function generateMaze()
     diffs = 0
     for i = 2, height-1 do
         for j = 2, width-1 do
-            rand = math.random(40)
+            rand = math.random(20)
             if (rand == 1) then
                 diffs = diffs + 1
                 if bit.band(modifiedMap[i][j], 1) == 0 then
@@ -336,25 +337,33 @@ end
 function love.draw()
     love.graphics.clear()
     love.graphics.setLineWidth(2)
-
-    drawBotMaze(width*quadsize + 50, height*quadsize + 25)
+    if start then
+        drawBotMaze(width*quadsize + 50, height*quadsize + 25)
+    end
 
     drawMaze(map, 0, 0) 
-    drawPath(mapPath, 0, 0)
+    if start then
+        drawPath(mapPath, 0, 0)
+    end
     drawMapLines(map, 0, 0)
-    drawRobot(0, 0)
-    drawTarget(0, 0)
+    if start then
+        drawRobot(0, 0)
+        drawTarget(0, 0)
+    end
 
     drawMaze(modifiedMap, width*quadsize + 50, 0)  
-    drawPath(modifiedMapPath, width*quadsize + 50, 0)
+    if start then
+        drawPath(modifiedMapPath, width*quadsize + 50, 0)
+    end
     drawModifiedMapLines(width*quadsize + 50)    
-    drawRobot(width*quadsize + 50, 0)
-    drawTarget(width*quadsize + 50, 0)
-
-    drawMaze(posibilitiesMap, 0, height*quadsize + 25) 
-    drawMapLines(posibilitiesMap, 0, height*quadsize + 25)  
-    drawPossiblePositions(0, height*quadsize + 25)
-    drawTarget(0, height*quadsize + 25)
+    if start then
+        drawRobot(width*quadsize + 50, 0)
+        drawTarget(width*quadsize + 50, 0)
+        drawMaze(posibilitiesMap, 0, height*quadsize + 25) 
+        drawMapLines(posibilitiesMap, 0, height*quadsize + 25)  
+        drawPossiblePositions(0, height*quadsize + 25)
+        drawTarget(0, height*quadsize + 25)
+    end
 end
 
 function calcPath(maze)
@@ -451,17 +460,37 @@ function updateBot()
 end
 
 function procKeyboard(key, scancode, isrepeat)
-    if (key == "right") and (robotX < width) then
-        robotX = robotX + 1
+    processed = false
+    if (key == "right") then
+        if (robotX < width) then
+            robotX = robotX + 1
+        end
+        processed = true
     end
-    if (key == "left") and (robotX > 1) then
-        robotX = robotX - 1
+    if (key == "left") then
+        if (robotX > 1) then
+            robotX = robotX - 1
+        end
+        processed = true
     end
-    if (key == "up") and (robotY > 1) then
-        robotY = robotY - 1
+    if (key == "up") then
+        if (robotY > 1) then
+            robotY = robotY - 1
+        end
+        processed = true
     end
-    if (key == "down") and (robotY < height) then
-        robotY = robotY + 1
+    if (key == "down") then
+        if (robotY < height) then
+            robotY = robotY + 1
+        end
+        processed = true
+    end
+    if (key == "return") then
+        start = true
+        processed = true
+    end
+    if (not processed) then
+        print(key, scancode, isrepeat)
     end
 end
 
@@ -480,14 +509,23 @@ function checkPos(y, x)
             end
         end
     end
-    -- print(x, y)
     if (x <= robotX - min_x) or (y <= robotY - min_y) then
         return 0
     end
     if (x >  width - (max_x - robotX)) or (y > height -(max_y - robotY)) then
         return 0
     end
-    return x+y
+    off_x = x - robotX
+    off_y = y - robotY
+    ret = 0
+    for j = min_x, max_x do
+        for i = min_y, max_y do 
+            if (visited[i][j] ~= 0) and (botMaze[i][j] == map[i+off_y][j+off_x]) then
+                ret = ret + 1
+            end
+        end
+    end
+    return ret
 end
 
 function checkPositions()

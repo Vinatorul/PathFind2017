@@ -9,6 +9,8 @@ local destY = 0
 local mapPath = {}
 local modifiedMapPath = {}
 local botMaze = {}
+local possiblePositions = {}
+local visited = {}
 quadsize = 23;
 width = 20
 height = 15
@@ -17,9 +19,13 @@ function generateMaze()
     for i = 1, height do
         map[i] = {}
         botMaze[i] = {}
+        visited[i] = {}
+        possiblePositions[i] = {}
         for j = 1, width do
             map[i][j] = 0
             botMaze[i][j] = 0
+            visited[i][j] = 0
+            possiblePositions[i][j] = 0
         end
     end
     q = Queue.new()
@@ -115,8 +121,11 @@ function love.load()
     love.window.setMode(1024, 768)
     love.window.setTitle("Pathfind 2017")
     math.randomseed( os.time() )
-    generateMaze()
-    setPositions()
+    flag = false
+    while (not flag) do
+        generateMaze()
+        flag = setPositions()
+    end
     mapPath = calcPath(map)
     modifiedMapPath = calcPath(modifiedMap)
     love.keypressed = procKeyboard
@@ -258,12 +267,13 @@ function setPositions()
         print(robotX, robotY, destX, destY)
         found = checkPath(map) and checkPath(modifiedMap)
         iter = iter + 1
-        if (iter > 1000) then
+        if (iter > 100) then
             print("bad seed")
-            break
+            return false
         end
     end
     print("alive")
+    return true
 end
 
 function drawPath(pathArr, offset_x, offset_y) 
@@ -305,6 +315,24 @@ function drawBotMaze(offset_x, offset_y)
     drawRobot(offset_x, offset_y)
 end
 
+function drawPossiblePositions(offset_x, offset_y)
+    mx = 0
+    for i = 1, height do
+        for j = 1, width do
+            mx = math.max(mx, possiblePositions[i][j]) 
+        end
+    end
+    for i = 1, height do
+        for j = 1, width do
+            if possiblePositions[i][j] >= 2*mx/3 then
+                love.graphics.setColor(70, 255, 70)
+                love.graphics.rectangle("fill", offset_x + j*quadsize, 
+                    i*quadsize + offset_y, quadsize, quadsize) 
+            end
+        end
+    end
+end
+
 function love.draw()
     love.graphics.clear()
     love.graphics.setLineWidth(2)
@@ -325,9 +353,8 @@ function love.draw()
 
     drawMaze(posibilitiesMap, 0, height*quadsize + 25) 
     drawMapLines(posibilitiesMap, 0, height*quadsize + 25)  
-    drawRobot(0, height*quadsize + 25)
+    drawPossiblePositions(0, height*quadsize + 25)
     drawTarget(0, height*quadsize + 25)
-
 end
 
 function calcPath(maze)
@@ -391,7 +418,7 @@ function calcPath(maze)
                 pathArr[tY][tX] = 1
             end
             iter = iter + 1
-            if (iter > 1000) then
+            if (iter > 100) then
                 print(tX, tY, robotX, robotY, used[tY][tX])
                 break
             end
@@ -401,6 +428,7 @@ function calcPath(maze)
 end
 
 function updateBot()
+    visited[robotY][robotX] = 1
     if (robotY > 1) and bit.band(modifiedMap[robotY][robotX], 1) ~= 0 and bit.band(botMaze[robotY][robotX], 1) == 0 then   
         botMaze[robotY][robotX] = botMaze[robotY][robotX] + 1
         botMaze[robotY-1][robotX] = botMaze[robotY-1][robotX] + 4
@@ -437,8 +465,42 @@ function procKeyboard(key, scancode, isrepeat)
     end
 end
 
+function checkPos(y, x)
+    min_x = width
+    min_y = height
+    max_x = 1
+    max_y = 1
+    for i = 1, height do
+        for j = 1, width do
+            if botMaze[i][j] ~= 0 then
+                min_x = math.min(min_x, j)
+                min_y = math.min(min_y, i)
+                max_x = math.max(max_x, j)
+                max_y = math.max(max_y, i)
+            end
+        end
+    end
+    -- print(x, y)
+    if (x <= robotX - min_x) or (y <= robotY - min_y) then
+        return 0
+    end
+    if (x >  width - (max_x - robotX)) or (y > height -(max_y - robotY)) then
+        return 0
+    end
+    return x+y
+end
+
+function checkPositions()
+    for i = 1, height do
+        for j = 1, width do
+            possiblePositions[i][j] = checkPos(i, j)
+        end
+    end
+end
+
 function love.update(dt)
     mapPath = calcPath(map)
     modifiedMapPath = calcPath(modifiedMap)
     updateBot()
+    checkPositions()
 end

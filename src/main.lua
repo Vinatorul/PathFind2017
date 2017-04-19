@@ -8,6 +8,7 @@ local destX = 0
 local destY = 0
 local mapPath = {}
 local modifiedMapPath = {}
+local botMaze = {}
 quadsize = 23;
 width = 20
 height = 15
@@ -15,8 +16,10 @@ height = 15
 function generateMaze()
     for i = 1, height do
         map[i] = {}
+        botMaze[i] = {}
         for j = 1, width do
             map[i][j] = 0
+            botMaze[i][j] = 0
         end
     end
     q = Queue.new()
@@ -51,7 +54,7 @@ function generateMaze()
                 end
             end
         end
-    end
+    end 
     for i = 1, height do
         modifiedMap[i] = {}
         for j = 1, width do
@@ -116,6 +119,7 @@ function love.load()
     setPositions()
     mapPath = calcPath(map)
     modifiedMapPath = calcPath(modifiedMap)
+    love.keypressed = procKeyboard
 end
 
 function drawMaze(maze, offset_x, offset_y)
@@ -225,6 +229,7 @@ end
 
 function setPositions()
     found = false
+    iter = 0
     while (not found) do
         part = math.random(2)
         if (part == 2) then
@@ -252,6 +257,11 @@ function setPositions()
         destY = math.random((part2-1)*h4 + 1, part2*h4)
         print(robotX, robotY, destX, destY)
         found = checkPath(map) and checkPath(modifiedMap)
+        iter = iter + 1
+        if (iter > 1000) then
+            print("bad seed")
+            break
+        end
     end
     print("alive")
 end
@@ -277,9 +287,30 @@ function drawTarget(offset_x, offset_y)
     love.graphics.rectangle("fill", offset_x + destX*quadsize, destY*quadsize + offset_y, quadsize, quadsize)  
 end
 
+function drawBotMaze(offset_x, offset_y)
+    min_x = width
+    min_y = height
+    for i = 1, height do
+        for j = 1, width do
+            if botMaze[i][j] ~= 0 then
+                min_x = math.min(min_x, j)
+                min_y = math.min(min_y, i)
+            end
+        end
+    end
+    offset_x = offset_x - (min_x-1)*quadsize
+    offset_y = offset_y - (min_y-1)*quadsize
+    drawMaze(botMaze, offset_x, offset_y)
+    drawMapLines(botMaze, offset_x, offset_y)
+    drawRobot(offset_x, offset_y)
+end
+
 function love.draw()
     love.graphics.clear()
     love.graphics.setLineWidth(2)
+
+    drawBotMaze(width*quadsize + 50, height*quadsize + 25)
+
     drawMaze(map, 0, 0) 
     drawPath(mapPath, 0, 0)
     drawMapLines(map, 0, 0)
@@ -296,6 +327,7 @@ function love.draw()
     drawMapLines(posibilitiesMap, 0, height*quadsize + 25)  
     drawRobot(0, height*quadsize + 25)
     drawTarget(0, height*quadsize + 25)
+
 end
 
 function calcPath(maze)
@@ -368,7 +400,45 @@ function calcPath(maze)
     return pathArr
 end
 
+function updateBot()
+    if (robotY > 1) and bit.band(modifiedMap[robotY][robotX], 1) ~= 0 and bit.band(botMaze[robotY][robotX], 1) == 0 then   
+        botMaze[robotY][robotX] = botMaze[robotY][robotX] + 1
+        botMaze[robotY-1][robotX] = botMaze[robotY-1][robotX] + 4
+    end
+    if (robotX < width) and bit.band(modifiedMap[robotY][robotX], 2) ~= 0 and bit.band(botMaze[robotY][robotX], 2) == 0 then
+        Queue.push(q, {robotX+1, robotY})   
+        botMaze[robotY][robotX] = botMaze[robotY][robotX] + 2
+        botMaze[robotY][robotX+1] = botMaze[robotY][robotX+1] + 8
+    end
+    if (robotY < height) and bit.band(modifiedMap[robotY][robotX], 4) ~= 0 and bit.band(botMaze[robotY][robotX], 4) == 0 then
+            Queue.push(q, {robotX, robotY+1})   
+        botMaze[robotY][robotX] = botMaze[robotY][robotX] + 4
+        botMaze[robotY+1][robotX] = botMaze[robotY+1][robotX] + 1
+    end
+    if (robotX > 1) and bit.band(modifiedMap[robotY][robotX], 8) ~= 0  and bit.band(botMaze[robotY][robotX], 8) == 0 then
+        Queue.push(q, {robotX-1, robotY})   
+        botMaze[robotY][robotX] = botMaze[robotY][robotX] + 8
+        botMaze[robotY][robotX-1] = botMaze[robotY][robotX-1] + 2
+    end
+end
+
+function procKeyboard(key, scancode, isrepeat)
+    if (key == "right") and (robotX < width) then
+        robotX = robotX + 1
+    end
+    if (key == "left") and (robotX > 1) then
+        robotX = robotX - 1
+    end
+    if (key == "up") and (robotY > 1) then
+        robotY = robotY - 1
+    end
+    if (key == "down") and (robotY < height) then
+        robotY = robotY + 1
+    end
+end
+
 function love.update(dt)
     mapPath = calcPath(map)
     modifiedMapPath = calcPath(modifiedMap)
+    updateBot()
 end

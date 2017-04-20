@@ -3,10 +3,13 @@ local map = {}
 local modifiedMap = {}
 local posibilitiesMap = {}
 local robotX = 0
+local prevRobotX = 0
 local robotY = 0
+local prevRobotY = 0
 local destX = 0
 local destY = 0
 local mapPath = {}
+local posibilitiesMapPath = {}
 local modifiedMapPath = {}
 local botMaze = {}
 local possiblePositions = {}
@@ -71,7 +74,7 @@ function generateMaze()
     diffs = 0
     for i = 2, height-1 do
         for j = 2, width-1 do
-            rand = math.random(20)
+            rand = math.random(30)
             if (rand == 1) then
                 diffs = diffs + 1
                 if bit.band(modifiedMap[i][j], 1) == 0 then
@@ -114,7 +117,12 @@ function generateMaze()
             end
         end
     end
-    posibilitiesMap = map
+    for i = 1, height do
+        posibilitiesMap[i] = {}
+        for j = 1, width do
+            posibilitiesMap[i][j] = map[i][j]
+        end
+    end
     print(diffs)
 end
 
@@ -129,7 +137,9 @@ function love.load()
     end
     mapPath = calcPath(map)
     modifiedMapPath = calcPath(modifiedMap)
+    posibilitiesMapPath = calcPath(posibilitiesMap)
     love.keypressed = procKeyboard
+    updateBot()
 end
 
 function drawMaze(maze, offset_x, offset_y)
@@ -163,11 +173,11 @@ function drawMapLines(maze, offset_x, offset_y)
     end 
 end
 
-function setLineColor(i, j, b)
-    if (bit.band(modifiedMap[i][j], b) == 0) and (bit.band(map[i][j], b) == 0) then
+function setLineColor(maze, i, j, b)
+    if (bit.band(maze[i][j], b) == 0) and (bit.band(map[i][j], b) == 0) then
         love.graphics.setColor(0, 0, 0)
     else 
-        if bit.band(modifiedMap[i][j], b) == 0 then
+        if bit.band(maze[i][j], b) == 0 then
             love.graphics.setColor(255, 0, 0)
         else
             love.graphics.setColor(0, 255, 0)
@@ -175,24 +185,24 @@ function setLineColor(i, j, b)
     end
 end
 
-function drawModifiedMapLines(offset)
+function drawModifiedMapLines(maze, offset_x, offset_y)
     for i = 1, height do
         for j = 1, width do
-            if (bit.band(modifiedMap[i][j], 1) == 0) or (bit.band(map[i][j], 1) == 0) then
-                setLineColor(i, j, 1)
-                love.graphics.line(offset+j*quadsize, i*quadsize, offset+(j+1)*quadsize, i*quadsize)
+            if (bit.band(maze[i][j], 1) == 0) or (bit.band(map[i][j], 1) == 0) then
+                setLineColor(maze, i, j, 1)
+                love.graphics.line(offset_x+j*quadsize, offset_y+i*quadsize, offset_x+(j+1)*quadsize, offset_y+i*quadsize)
             end
-            if (bit.band(modifiedMap[i][j], 2) == 0) or (bit.band(map[i][j], 2) == 0) then
-                setLineColor(i, j, 2)
-                love.graphics.line(offset+(j+1)*quadsize, i*quadsize, offset+(j+1)*quadsize, (i+1)*quadsize)
+            if (bit.band(maze[i][j], 2) == 0) or (bit.band(map[i][j], 2) == 0) then
+                setLineColor(maze, i, j, 2)
+                love.graphics.line(offset_x+(j+1)*quadsize, offset_y+i*quadsize, offset_x+(j+1)*quadsize, offset_y+(i+1)*quadsize)
             end
-            if (bit.band(modifiedMap[i][j], 4) == 0) or (bit.band(map[i][j], 4) == 0) then
-                setLineColor(i, j, 4)
-                love.graphics.line(offset+j*quadsize, (i+1)*quadsize, offset+(j+1)*quadsize, (i+1)*quadsize)
+            if (bit.band(maze[i][j], 4) == 0) or (bit.band(map[i][j], 4) == 0) then
+                setLineColor(maze, i, j, 4)
+                love.graphics.line(offset_x+j*quadsize, offset_y+(i+1)*quadsize, offset_x+(j+1)*quadsize, offset_y+(i+1)*quadsize)
             end
-            if (bit.band(modifiedMap[i][j], 8) == 0) or (bit.band(map[i][j], 8) == 0) then
-                setLineColor(i, j, 8)
-                love.graphics.line(offset+j*quadsize, i*quadsize, offset+j*quadsize, (i+1)*quadsize)
+            if (bit.band(maze[i][j], 8) == 0) or (bit.band(map[i][j], 8) == 0) then
+                setLineColor(maze, i, j, 8)
+                love.graphics.line(offset_x+j*quadsize, offset_y+i*quadsize, offset_x+j*quadsize, offset_y+(i+1)*quadsize)
             end
         end
     end 
@@ -355,12 +365,12 @@ function love.draw()
     if start then
         drawPath(modifiedMapPath, width*quadsize + 50, 0)
     end
-    drawModifiedMapLines(width*quadsize + 50)    
+    drawModifiedMapLines(modifiedMap, width*quadsize + 50, 0)    
     if start then
         drawRobot(width*quadsize + 50, 0)
         drawTarget(width*quadsize + 50, 0)
         drawMaze(posibilitiesMap, 0, height*quadsize + 25) 
-        drawMapLines(posibilitiesMap, 0, height*quadsize + 25)  
+        drawModifiedMapLines(posibilitiesMap, 0, height*quadsize + 25)  
         drawPossiblePositions(0, height*quadsize + 25)
         drawTarget(0, height*quadsize + 25)
     end
@@ -436,6 +446,129 @@ function calcPath(maze)
     return pathArr
 end
 
+function moveBot()
+    if (robotX == destX) and (robotY == destY) then
+        return
+    end
+    mx = 0
+    for i = 1, height do
+        for j = 1, width do
+            mx = math.max(mx, possiblePositions[i][j]) 
+        end
+    end
+    top = 0
+    left = 0
+    right = 0
+    down = 0
+    ctMx = 0
+    for i = 1, height do
+        for j = 1, width do
+            if possiblePositions[i][j] >= 2*mx/3 then
+                ctMx = ctMx + 1
+                if bit.band(map[i][j], 1) ~= 0 then
+                    top = top + 1
+                end
+                if bit.band(map[i][j], 2) ~= 0 then
+                    right = right + 1
+                end
+                if bit.band(map[i][j], 4) ~= 0 then
+                    down = down + 1
+                end
+                if bit.band(map[i][j], 8) ~= 0 then
+                    left = left + 1
+                end
+            end
+        end
+    end
+    if bit.band(modifiedMap[robotY][robotX], 1) == 0 then
+        top = 0
+        if (ctMx == 1) and (robotY > 1)and (bit.band(posibilitiesMap[robotY][robotX], 1) ~= 0) then 
+            posibilitiesMap[robotY][robotX] = posibilitiesMap[robotY][robotX] - 1
+            posibilitiesMap[robotY-1][robotX] = posibilitiesMap[robotY-1][robotX] - 4
+        end
+    else
+        if (ctMx == 1) and (posibilitiesMapPath[robotY-1][robotX] ~= 0) then
+            top = top + 5
+        end
+    end
+    if bit.band(modifiedMap[robotY][robotX], 2) == 0 then
+        right = 0
+        if (ctMx == 1) and (robotX < width)and (bit.band(posibilitiesMap[robotY][robotX], 2) ~= 0) then 
+            posibilitiesMap[robotY][robotX] = posibilitiesMap[robotY][robotX] - 2
+            posibilitiesMap[robotY][robotX+1] = posibilitiesMap[robotY][robotX+1] - 8
+        end
+    else
+        if (ctMx == 1) and (posibilitiesMapPath[robotY][robotX+1] ~= 0) then
+            right = right + 5
+        end
+    end
+    if bit.band(modifiedMap[robotY][robotX], 4) == 0 then
+        down = 0
+        if (ctMx == 1) and (robotY < height)and (bit.band(posibilitiesMap[robotY][robotX], 4) ~= 0) then 
+            posibilitiesMap[robotY][robotX] = posibilitiesMap[robotY][robotX] - 4
+            posibilitiesMap[robotY+1][robotX] = posibilitiesMap[robotY+1][robotX] - 1
+        end
+    else
+        if (ctMx == 1) and (posibilitiesMapPath[robotY+1][robotX] ~= 0) then
+            down = down + 5
+        end
+    end  
+    if bit.band(modifiedMap[robotY][robotX], 8) == 0 then
+        left = 0
+        if (ctMx == 1) and (robotX > 1) and (bit.band(posibilitiesMap[robotY][robotX], 8) ~= 0) then 
+            posibilitiesMap[robotY][robotX] = posibilitiesMap[robotY][robotX] - 8
+            posibilitiesMap[robotY][robotX-1] = posibilitiesMap[robotY][robotX-1] - 2
+        end
+    else
+        if (ctMx == 1) and (posibilitiesMapPath[robotY][robotX-1] ~= 0) then
+            left = left + 5
+        end
+    end
+    tX = robotX
+    tY = robotY
+    if (ctMx > 1) then
+        w = {top, right, down, left}
+        t = math.random(1, 4);
+        while (w[t] == 0) do
+            t = math.random(1, 4);
+        end
+        if (t == 1) then
+            tY = tY - 1
+        end
+        if (t == 2) then
+            tX = tX + 1
+        end
+        if (t == 3) then
+            tY = tY + 1
+        end
+        if (t == 4) then
+            tX = tX - 1
+        end
+    else
+        mx = math.max(top, left, down, right)
+        if (mx == top) then
+            tY = tY - 1
+            mx = 999
+        end
+        if (mx == right) then
+            tX = tX + 1
+            mx = 999
+        end
+        if (mx == down) then
+            tY = tY + 1
+            mx = 999
+        end
+        if (mx == left) then
+            tX = tX - 1
+            mx = 999
+        end
+    end
+    prevRobotY = robotY
+    prevRobotX = robotX
+    robotX = tX
+    robotY = tY
+end
+
 function updateBot()
     visited[robotY][robotX] = 1
     if (robotY > 1) and bit.band(modifiedMap[robotY][robotX], 1) ~= 0 and bit.band(botMaze[robotY][robotX], 1) == 0 then   
@@ -489,6 +622,9 @@ function procKeyboard(key, scancode, isrepeat)
         start = true
         processed = true
     end
+    if (key == "esc") then
+        love.window.close()
+    end
     if (not processed) then
         print(key, scancode, isrepeat)
     end
@@ -537,8 +673,13 @@ function checkPositions()
 end
 
 function love.update(dt)
-    mapPath = calcPath(map)
-    modifiedMapPath = calcPath(modifiedMap)
-    updateBot()
-    checkPositions()
+    if start then
+        moveBot()
+        updateBot()
+        checkPositions()
+        mapPath = calcPath(map)
+        modifiedMapPath = calcPath(modifiedMap)
+        posibilitiesMapPath = calcPath(posibilitiesMap)
+        love.timer.sleep(0.5)
+    end
 end

@@ -14,7 +14,9 @@ local modifiedMapPath = {}
 local botMaze = {}
 local possiblePositions = {}
 local visited = {}
-local start = false
+local steps = 0
+local maxSteps = 0
+local toTheEnd = false
 quadsize = 23;
 width = 20
 height = 15
@@ -74,7 +76,7 @@ function generateMaze()
     diffs = 0
     for i = 2, height-1 do
         for j = 2, width-1 do
-            rand = math.random(30)
+            rand = math.random(20)
             if (rand == 1) then
                 diffs = diffs + 1
                 if bit.band(modifiedMap[i][j], 1) == 0 then
@@ -139,6 +141,7 @@ function love.load()
     modifiedMapPath = calcPath(modifiedMap)
     posibilitiesMapPath = calcPath(posibilitiesMap)
     love.keypressed = procKeyboard
+    love.mousepressed = procMOuse
     updateBot()
 end
 
@@ -347,32 +350,57 @@ end
 function love.draw()
     love.graphics.clear()
     love.graphics.setLineWidth(2)
-    if start then
+    if steps > 0 then
         drawBotMaze(width*quadsize + 50, height*quadsize + 25)
     end
 
     drawMaze(map, 0, 0) 
-    if start then
+    if steps > 0 then
         drawPath(mapPath, 0, 0)
     end
     drawMapLines(map, 0, 0)
-    if start then
+    if steps > 0 then
         drawRobot(0, 0)
         drawTarget(0, 0)
     end
 
     drawMaze(modifiedMap, width*quadsize + 50, 0)  
-    if start then
+    if steps > 0 then
         drawPath(modifiedMapPath, width*quadsize + 50, 0)
     end
     drawModifiedMapLines(modifiedMap, width*quadsize + 50, 0)    
-    if start then
+    if steps > 0 then
         drawRobot(width*quadsize + 50, 0)
         drawTarget(width*quadsize + 50, 0)
         drawMaze(posibilitiesMap, 0, height*quadsize + 25) 
         drawModifiedMapLines(posibilitiesMap, 0, height*quadsize + 25)  
         drawPossiblePositions(0, height*quadsize + 25)
         drawTarget(0, height*quadsize + 25)
+    end
+    if steps == 0 then
+        love.graphics.setColor(200, 200, 0)
+        love.graphics.rectangle("fill", (1024/2 - 200), 
+            762/2 + 50, 400, 200) 
+        love.graphics.setColor(0, 0, 0, 255)
+        love.graphics.setNewFont(60)
+        love.graphics.print("Simulate", 1024/2 - 135, 762/2 + 110)
+    end
+    if (steps > 0) then
+        if toTheEnd then
+            love.graphics.setColor(200, 200, 0)
+            love.graphics.rectangle("fill", (900), 
+                700, 124, 68) 
+            love.graphics.setColor(0, 0, 0, 255)
+            love.graphics.setNewFont(40)
+            love.graphics.print("Pause", 905, 710)
+        else
+            love.graphics.setColor(200, 200, 0)
+            love.graphics.rectangle("fill", (900), 
+                700, 124, 68) 
+            love.graphics.setColor(0, 0, 0, 255)
+            love.graphics.setNewFont(40)
+            love.graphics.print("Auto", 920, 710)
+        end
     end
 end
 
@@ -619,7 +647,7 @@ function procKeyboard(key, scancode, isrepeat)
         processed = true
     end
     if (key == "return") then
-        start = true
+        steps = 1
         processed = true
     end
     if (key == "esc") then
@@ -672,8 +700,20 @@ function checkPositions()
     end
 end
 
+function procMOuse( x, y, button, istouch )
+    maxSteps = maxSteps + 1
+    if (x > 900) and (y > 700) then
+        if toTheEnd then
+            maxSteps = steps
+            toTheEnd = false
+        else
+            toTheEnd = true
+        end
+    end
+end
+
 function love.update(dt)
-    if start then
+    if (steps < maxSteps) or toTheEnd then
         moveBot()
         updateBot()
         checkPositions()
@@ -681,5 +721,6 @@ function love.update(dt)
         modifiedMapPath = calcPath(modifiedMap)
         posibilitiesMapPath = calcPath(posibilitiesMap)
         love.timer.sleep(0.5)
+        steps = steps + 1
     end
 end

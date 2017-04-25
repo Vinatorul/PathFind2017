@@ -17,6 +17,7 @@ local visited = {}
 local steps = 0
 local maxSteps = 0
 local toTheEnd = false
+local fullscreen = false
 quadsize = 23;
 width = 20
 height = 15
@@ -383,7 +384,7 @@ function love.draw()
             762/2 + 50, 400, 200) 
         love.graphics.setColor(0, 0, 0, 255)
         love.graphics.setNewFont(60)
-        love.graphics.print("Simulate", 1024/2 - 135, 762/2 + 110)
+        love.graphics.print("Simulate", 1024/2 - 135, 762/2 + 115)
     end
     if (steps > 0) then
         if toTheEnd then
@@ -647,11 +648,16 @@ function procKeyboard(key, scancode, isrepeat)
         processed = true
     end
     if (key == "return") then
-        steps = 1
+        fullscreen = not fullscreen
+        love.window.setFullscreen(fullscreen)
+        if not fullscreen then
+            love.window.setMode(1024, 768)
+        end
         processed = true
     end
-    if (key == "esc") then
+    if (key == "escape") then
         love.window.close()
+        processed = true
     end
     if (not processed) then
         print(key, scancode, isrepeat)
